@@ -49,7 +49,7 @@ function minmax_in_array(array: number[]): MinMaxVals {
 		blurred_array.push(val);
 	}
 
-	blurred_array.forEach((val: number, idx: number) => {
+	blurred_array.forEach((val: number) => {
 		max_val = Math.max(val, max_val);
 		min_val = Math.min(val, min_val);
 	});
