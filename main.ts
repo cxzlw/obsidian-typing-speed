@@ -1,6 +1,5 @@
-import { tuto_stylingb64 } from 'assets';
-import { App, Editor, editorViewField, FileSystemAdapter, MarkdownView, Modal, normalizePath, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
-
+import { tuto_stylingb64 } from "assets";
+import { App, Plugin, PluginSettingTab, Setting } from "obsidian";
 
 interface TypingSpeedSettings {
 	metrics: string;
@@ -11,44 +10,42 @@ interface TypingSpeedSettings {
 }
 
 const DEFAULT_SETTINGS: TypingSpeedSettings = {
-	metrics: 'wpm',
-	darken_after_pausing: 'darken',
+	metrics: "wpm",
+	darken_after_pausing: "darken",
 	monkeytype_counting: true,
 	show_minmax: false,
 	display_first: false,
-}
+};
 
 interface MinMaxVals {
 	min: number;
 	max: number;
 }
 
-function getMetricFactor(metric: String): number {
+function getMetricFactor(metric: string): number {
 	switch (metric) {
-		case 'cpm':
-		case 'wpm':
+		case "cpm":
+		case "wpm":
 			return 60.0;
-		case 'cps':
+		case "cps":
 			return 1.0;
 	}
 }
 
 function average_array(array: number[]): number {
-	var avg = array.reduce((a: number,b: number) => {
-		return a+b
+	const avg = array.reduce((a: number, b: number) => {
+		return a + b;
 	}, 0);
 
-	return (avg / array.length) || 0;
+	return avg / array.length || 0;
 }
 
-function minmax_in_array(array: number[]):MinMaxVals {
-	
-	var min_val = 10000.0;
-	var max_val = 0.0;
-	var blurred_array = [];
-	for(var i = 1; i < array.length - 1; i++)
-	{
-		var val = (array[i]+array[i+1] +array[i-1])/3;
+function minmax_in_array(array: number[]): MinMaxVals {
+	let min_val = 10000.0;
+	let max_val = 0.0;
+	const blurred_array = [];
+	for (let i = 1; i < array.length - 1; i++) {
+		const val = (array[i] + array[i + 1] + array[i - 1]) / 3;
 		blurred_array.push(val);
 	}
 
@@ -57,10 +54,8 @@ function minmax_in_array(array: number[]):MinMaxVals {
 		min_val = Math.min(val, min_val);
 	});
 
-	return {min: min_val, max: max_val};
-	
+	return { min: min_val, max: max_val };
 }
-
 
 function array_shiftadd(array: number[], value: number): number[] {
 	array.shift();
@@ -68,23 +63,21 @@ function array_shiftadd(array: number[], value: number): number[] {
 
 	return array;
 }
-  
+
 export default class TypingSpeedPlugin extends Plugin {
 	settings: TypingSpeedSettings;
 
 	Typed: number[] = [0];
 
-
-	pollings_in_seconds: number = 1.0;
-	keyTypedInSecond: number = 0;
-	wordTypedInSecond: number = 0;
-	keyTypedSinceSpace: number = 0;
+	pollings_in_seconds = 1.0;
+	keyTypedInSecond = 0;
+	wordTypedInSecond = 0;
+	keyTypedSinceSpace = 0;
 
 	statusBarItemEl: HTMLElement;
 
 	// if in the last 2 seconds the user was not typing, just stop counting
-	hasStoppedTyping(typed: number[]): Boolean {
-
+	hasStoppedTyping(typed: number[]): boolean {
 		const second_check = 2 * this.pollings_in_seconds;
 		const check_start = typed.length - second_check;
 
@@ -92,7 +85,7 @@ export default class TypingSpeedPlugin extends Plugin {
 			return false;
 		}
 
-		for (var i = check_start; i < typed.length; i++) {
+		for (let i = check_start; i < typed.length; i++) {
 			if (typed[i] != 0) {
 				return false;
 			}
@@ -104,147 +97,131 @@ export default class TypingSpeedPlugin extends Plugin {
 		await this.loadSettings();
 
 		this.statusBarItemEl = this.addStatusBarItem();
-		this.statusBarItemEl.setText('');
+		this.statusBarItemEl.setText("");
 
 		this.addSettingTab(new TypingSpeedSettingTab(this.app, this));
 
-		this.registerDomEvent(document, 'keydown', (evt: KeyboardEvent) => {
-
+		this.registerDomEvent(document, "keydown", (evt: KeyboardEvent) => {
 			// only some key are valid
-			const keyRegex: RegExp = /^[\p{L},;1-9]$/gu;
+			const keyRegex = /^[\p{L},;1-9]$/gu;
 
 			if (evt.key.match(keyRegex)) {
 				this.keyTypedInSecond += 1;
 				this.keyTypedSinceSpace += 1;
 			}
 
-			if (evt.key == ' ' && this.keyTypedSinceSpace != 0) {
-				if(this.settings.monkeytype_counting)
-				{
-					this.wordTypedInSecond += (this.keyTypedSinceSpace+1)/5.0;
-				}
-				else {
+			if (evt.key == " " && this.keyTypedSinceSpace != 0) {
+				if (this.settings.monkeytype_counting) {
+					this.wordTypedInSecond +=
+						(this.keyTypedSinceSpace + 1) / 5.0;
+				} else {
 					this.wordTypedInSecond += 1.0;
 				}
 				this.keyTypedSinceSpace = 0;
 			}
-
 		});
 
-		this.registerInterval(window.setInterval(() => {
+		this.registerInterval(
+			window.setInterval(() => {
+				let average = 0;
+				const fact = getMetricFactor(this.settings.metrics);
+				let added = 0;
+				let min_val = 0;
+				let max_val = 0;
 
-			var average = 0;
-			var fact = getMetricFactor(this.settings.metrics);
-			var added = 0;
-			var min_val = 0;
-			var max_val = 0;
-
-			if (this.settings.metrics == 'cps' || this.settings.metrics == 'cpm') {
-				added = this.keyTypedInSecond;
-				this.keyTypedInSecond = 0;
-			}
-			else if (this.settings.metrics == 'wpm') {
-				added = this.wordTypedInSecond;
-				this.wordTypedInSecond = 0;
-			}
-
-
-			if (!this.hasStoppedTyping(this.Typed) || added != 0) {
-
-				if(this.hasStoppedTyping(this.Typed))
-				{
-					this.Typed = [];
+				if (
+					this.settings.metrics == "cps" ||
+					this.settings.metrics == "cpm"
+				) {
+					added = this.keyTypedInSecond;
+					this.keyTypedInSecond = 0;
+				} else if (this.settings.metrics == "wpm") {
+					added = this.wordTypedInSecond;
+					this.wordTypedInSecond = 0;
 				}
 
-				if(this.Typed.length > this.pollings_in_seconds * 10)
-				{
-					array_shiftadd(this.Typed, added);
-				}
-				else {
-					this.Typed.push(added);
-				}
-				average = Math.round(average_array(this.Typed) * (fact));
+				if (!this.hasStoppedTyping(this.Typed) || added != 0) {
+					if (this.hasStoppedTyping(this.Typed)) {
+						this.Typed = [];
+					}
 
-				// avoid showing minmax if the setting is disabled 
-				if(this.settings.show_minmax)
-				{
-					var {min: min_avg, max: max_avg} = minmax_in_array(this.Typed);
-					min_val = Math.round(min_avg * (fact));
-					max_val = Math.round(max_avg * (fact));
-				}
+					if (this.Typed.length > this.pollings_in_seconds * 10) {
+						array_shiftadd(this.Typed, added);
+					} else {
+						this.Typed.push(added);
+					}
+					average = Math.round(average_array(this.Typed) * fact);
+
+					// avoid showing minmax if the setting is disabled
+					if (this.settings.show_minmax) {
+						const { min: min_avg, max: max_avg } = minmax_in_array(
+							this.Typed
+						);
+						min_val = Math.round(min_avg * fact);
+						max_val = Math.round(max_avg * fact);
+					}
 
 					this.statusBarItemEl.style.opacity = "100%";
-				this.statusBarItemEl.style.display = 'inline-flex';
+					this.statusBarItemEl.style.display = "inline-flex";
 
-				if(this.settings.display_first)
-				{
-					this.statusBarItemEl.style.order = '-1';
+					if (this.settings.display_first) {
+						this.statusBarItemEl.style.order = "-1";
+					} else {
+						this.statusBarItemEl.style.order = "0";
+					}
+				} else {
+					if (this.settings.darken_after_pausing == "darken") {
+						this.statusBarItemEl.style.opacity = "50%";
+					} else if (this.settings.darken_after_pausing == "hide") {
+						this.statusBarItemEl.style.display = "none";
+					}
 				}
-				else 
-				{
-					this.statusBarItemEl.style.order = '0';
-				}
-			}
-			else {
-				if (this.settings.darken_after_pausing == 'darken') {
-					this.statusBarItemEl.style.opacity = "50%";
-				}
-				else if(this.settings.darken_after_pausing == 'hide')
-				{
-					this.statusBarItemEl.style.display = 'none';
-				}
-			}
-			
 
-			var final_str = average + ' ' + this.settings.metrics;
-			if(this.settings.show_minmax)
-			{
-				final_str += ' (' + min_val + '-' + max_val + ')';
-			}
-			this.statusBarItemEl.setText(final_str);
-		}, 1000 / this.pollings_in_seconds ));
+				let final_str = average + " " + this.settings.metrics;
+				if (this.settings.show_minmax) {
+					final_str += " (" + min_val + "-" + max_val + ")";
+				}
+				this.statusBarItemEl.setText(final_str);
+			}, 1000 / this.pollings_in_seconds)
+		);
 	}
 
-	onunload() {
-	}
+	onunload() {}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		this.settings = Object.assign(
+			{},
+			DEFAULT_SETTINGS,
+			await this.loadData()
+		);
 
-
-		// for some people, the settings don't get updated. 
-		// 
-		if(this.settings.monkeytype_counting == undefined)
-		{
-			this.settings.monkeytype_counting = DEFAULT_SETTINGS.monkeytype_counting;
+		// for some people, the settings don't get updated.
+		//
+		if (this.settings.monkeytype_counting == undefined) {
+			this.settings.monkeytype_counting =
+				DEFAULT_SETTINGS.monkeytype_counting;
 		}
-		if(this.settings.show_minmax == undefined)
-		{
+		if (this.settings.show_minmax == undefined) {
 			this.settings.show_minmax = DEFAULT_SETTINGS.show_minmax;
 		}
-		if(this.settings.metrics == undefined)
-		{
+		if (this.settings.metrics == undefined) {
 			this.settings.metrics = DEFAULT_SETTINGS.metrics;
 		}
-		
-		if(this.settings.darken_after_pausing == undefined )
-		{
-			this.settings.darken_after_pausing = DEFAULT_SETTINGS.darken_after_pausing;
+
+		if (this.settings.darken_after_pausing == undefined) {
+			this.settings.darken_after_pausing =
+				DEFAULT_SETTINGS.darken_after_pausing;
 		}
 
-		if(this.settings.display_first == undefined)
-			{
+		if (this.settings.display_first == undefined) {
 			this.settings.display_first = DEFAULT_SETTINGS.display_first;
 		}
 
 		// auto convert settings between version
-		if((this.settings.darken_after_pausing as unknown) == true)
-		{
-			this.settings.darken_after_pausing = 'darken';
-		} 
-		else if((this.settings.darken_after_pausing as unknown) == false)
-		{
-			this.settings.darken_after_pausing = 'show';
+		if ((this.settings.darken_after_pausing as unknown) == true) {
+			this.settings.darken_after_pausing = "darken";
+		} else if ((this.settings.darken_after_pausing as unknown) == false) {
+			this.settings.darken_after_pausing = "show";
 		}
 	}
 
@@ -252,7 +229,6 @@ export default class TypingSpeedPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 }
-
 
 class TypingSpeedSettingTab extends PluginSettingTab {
 	plugin: TypingSpeedPlugin;
@@ -266,89 +242,105 @@ class TypingSpeedSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 
 		containerEl.empty();
-    	let coffeeLink = containerEl.createEl("a", {
-    	  href: "https://ko-fi.com/cypbv",
-    	});
-    	let coffeeImg = coffeeLink.createEl("img", {
-    	  attr: {
-    	    src: "https://cdn.ko-fi.com/cdn/kofi3.png?v=3",
-    	  },
-    	});
-    	coffeeImg.height = 45;
-		
+		const coffeeLink = containerEl.createEl("a", {
+			href: "https://ko-fi.com/cypbv",
+		});
+		const coffeeImg = coffeeLink.createEl("img", {
+			attr: {
+				src: "https://cdn.ko-fi.com/cdn/kofi3.png?v=3",
+			},
+		});
+		coffeeImg.height = 45;
 
-		containerEl.createEl('h2', { text: 'Settings for typing-speed plugin' });
+		containerEl.createEl("h2", {
+			text: "Settings for typing-speed plugin",
+		});
 
-		containerEl.createEl('h3', {text: 'Counting'})
-
-		new Setting(containerEl)
-			.setName('Typing speed metric')
-			.setDesc('choose which metric to use for typing speed')
-			.addDropdown(text => text
-				.addOption('wpm', 'word per minute')
-				.addOption('cps', 'character per second')
-				.addOption('cpm', 'character per minute')
-				.setValue(this.plugin.settings.metrics)
-				.onChange(async (value) => {
-					this.plugin.settings.metrics = value;
-					this.plugin.Typed = [0];
-					await this.plugin.saveSettings();
-				}));
+		containerEl.createEl("h3", { text: "Counting" });
 
 		new Setting(containerEl)
-			.setName('Normalize word counting')
-			.setDesc('Replicate the word counting functionality of MonkeyType by considering each word as the number of characters divided by 5. While this method may not be as precise for direct word counting, it accounts for the varying lengths of words.')
-			.addToggle(bool => bool
-				.setValue(this.plugin.settings.monkeytype_counting)
-				.onChange(async (value) => {
-					this.plugin.settings.monkeytype_counting = value;
-					await this.plugin.saveSettings();
-				})
+			.setName("Typing speed metric")
+			.setDesc("choose which metric to use for typing speed")
+			.addDropdown((text) =>
+				text
+					.addOption("wpm", "word per minute")
+					.addOption("cps", "character per second")
+					.addOption("cpm", "character per minute")
+					.setValue(this.plugin.settings.metrics)
+					.onChange(async (value) => {
+						this.plugin.settings.metrics = value;
+						this.plugin.Typed = [0];
+						await this.plugin.saveSettings();
+					})
 			);
-		
+
 		new Setting(containerEl)
-			.setName('Show min-max typing speed')
-			.setDesc('Present the lowest and highest typing speeds observed, focusing specifically on the worst and best speeds recorded within 3-second intervals. Note that there is more numbers shifting per second so it may be more distracting')
-			.addToggle(bool => bool
-				.setValue(this.plugin.settings.show_minmax)
-				.onChange(async (value) => {
-					this.plugin.settings.show_minmax = value;
-					await this.plugin.saveSettings();
-				})
+			.setName("Normalize word counting")
+			.setDesc(
+				"Replicate the word counting functionality of MonkeyType by considering each word as the number of characters divided by 5. While this method may not be as precise for direct word counting, it accounts for the varying lengths of words."
+			)
+			.addToggle((bool) =>
+				bool
+					.setValue(this.plugin.settings.monkeytype_counting)
+					.onChange(async (value) => {
+						this.plugin.settings.monkeytype_counting = value;
+						await this.plugin.saveSettings();
+					})
 			);
-		containerEl.createEl('h3', {text: 'Styling'})
-		
-		containerEl.createEl('img', {
+
+		new Setting(containerEl)
+			.setName("Show min-max typing speed")
+			.setDesc(
+				"Present the lowest and highest typing speeds observed, focusing specifically on the worst and best speeds recorded within 3-second intervals. Note that there is more numbers shifting per second so it may be more distracting"
+			)
+			.addToggle((bool) =>
+				bool
+					.setValue(this.plugin.settings.show_minmax)
+					.onChange(async (value) => {
+						this.plugin.settings.show_minmax = value;
+						await this.plugin.saveSettings();
+					})
+			);
+		containerEl.createEl("h3", { text: "Styling" });
+
+		containerEl.createEl("img", {
 			attr: {
 				src: "data:image/svg+xml;base64," + tuto_stylingb64,
-			}
-		})
+			},
+		});
 
 		new Setting(containerEl)
-			.setName('Darken after 3 sec')
+			.setName("Darken after 3 sec")
 			.setDesc(
-				'When you stop writing, after 3 seconds the typing speed display will darken or hide.')
-			.addDropdown(text => text
-				.addOption('darken', 'darken - only make the status less visible')
-				.addOption('hide', 'hide - fully hide the status')
-				.addOption('show', 'show - always show the status')
-				.setValue(this.plugin.settings.darken_after_pausing)
-				.onChange(async (value) => {
-					this.plugin.settings.darken_after_pausing = value;
-					await this.plugin.saveSettings();
-				})
+				"When you stop writing, after 3 seconds the typing speed display will darken or hide."
+			)
+			.addDropdown((text) =>
+				text
+					.addOption(
+						"darken",
+						"darken - only make the status less visible"
+					)
+					.addOption("hide", "hide - fully hide the status")
+					.addOption("show", "show - always show the status")
+					.setValue(this.plugin.settings.darken_after_pausing)
+					.onChange(async (value) => {
+						this.plugin.settings.darken_after_pausing = value;
+						await this.plugin.saveSettings();
+					})
 			);
 
 		new Setting(containerEl)
-			.setName('Display first')
-			.setDesc('Tweak the ordering in the status bar, to try to put the typing speed at first. Generally used to avoid shifting issue when trying to hide the typing speed. (This is a hack and may create little visual issues with other plugin)')
-			.addToggle(bool => bool
-				.setValue(this.plugin.settings.display_first)
-				.onChange(async (value) => {
-					this.plugin.settings.display_first = value;
-					await this.plugin.saveSettings();
-				})
+			.setName("Display first")
+			.setDesc(
+				"Tweak the ordering in the status bar, to try to put the typing speed at first. Generally used to avoid shifting issue when trying to hide the typing speed. (This is a hack and may create little visual issues with other plugin)"
+			)
+			.addToggle((bool) =>
+				bool
+					.setValue(this.plugin.settings.display_first)
+					.onChange(async (value) => {
+						this.plugin.settings.display_first = value;
+						await this.plugin.saveSettings();
+					})
 			);
-		
-		}
+	}
 }
