@@ -1,4 +1,4 @@
-import { tuto_stylingb64 } from "assets";
+import { tuto_stylingb64 } from "./assets.ts";
 import { App, Plugin, PluginSettingTab, Setting } from "obsidian";
 
 interface TypingSpeedSettings {
@@ -67,18 +67,20 @@ function array_shiftadd(array: number[], value: number): number[] {
 export default class TypingSpeedPlugin extends Plugin {
 	settings: TypingSpeedSettings;
 
-	Typed: number[] = [0];
+	typed: number[] = [0];
 
-	pollings_in_seconds = 1.0;
+	pollings_in_seconds = 5;
 	keyTypedInSecond = 0;
 	wordTypedInSecond = 0;
 	keyTypedSinceSpace = 0;
 
+	isComposing = false;
+	editorEl?: HTMLElement = null;
 	statusBarItemEl: HTMLElement;
 
-	// if in the last 2 seconds the user was not typing, just stop counting
+	// if in the last 10 seconds the user was not typing, just stop counting
 	hasStoppedTyping(typed: number[]): boolean {
-		const second_check = 2 * this.pollings_in_seconds;
+		const second_check = 10 * this.pollings_in_seconds;
 		const check_start = typed.length - second_check;
 
 		if (check_start < 0) {
@@ -100,25 +102,48 @@ export default class TypingSpeedPlugin extends Plugin {
 		this.statusBarItemEl.setText("");
 
 		this.addSettingTab(new TypingSpeedSettingTab(this.app, this));
+		this.editorEl = document.querySelector(".cm-editor");
 
-		this.registerDomEvent(document, "keydown", (evt: KeyboardEvent) => {
-			// only some key are valid
-			const keyRegex = /^[\p{L},;1-9]$/gu;
+		this.registerDomEvent(this.editorEl, "compositionstart", () => {
+			this.isComposing = true;
+		});
 
-			if (evt.key.match(keyRegex)) {
-				this.keyTypedInSecond += 1;
-				this.keyTypedSinceSpace += 1;
-			}
+		this.registerDomEvent(this.editorEl, "compositionend", (e) => {
+			console.log(e);
+			this.isComposing = false;
+			e.target.dispatchEvent(
+				new InputEvent("input", {
+					bubbles: e.bubbles,
+					cancelable: e.cancelable,
+					composed: e.composed,
+					data: e.data,
+					inputType: "insertCompositionText",
+					isComposing: false,
+				}),
+			);
+		});
 
-			if (evt.key == " " && this.keyTypedSinceSpace != 0) {
-				if (this.settings.monkeytype_counting) {
-					this.wordTypedInSecond +=
-						(this.keyTypedSinceSpace + 1) / 5.0;
-				} else {
-					this.wordTypedInSecond += 1.0;
+		this.registerDomEvent(this.editorEl, "input", (evt: InputEvent) => {
+			if (evt.isComposing) return;
+			console.log(evt);
+			for (const char of evt.data) {
+				const keyRegex = /^[\p{L},;1-9]$/gu;
+				if (char.match(keyRegex)) {
+					this.keyTypedInSecond += 1;
+					this.keyTypedSinceSpace += 1;
 				}
-				this.keyTypedSinceSpace = 0;
+
+				if (char == " " && this.keyTypedSinceSpace != 0) {
+					if (this.settings.monkeytype_counting) {
+						this.wordTypedInSecond +=
+							(this.keyTypedSinceSpace + 1) / 5.0;
+					} else {
+						this.wordTypedInSecond += 1.0;
+					}
+					this.keyTypedSinceSpace = 0;
+				}
 			}
+			// only some key are valid
 		});
 
 		this.registerInterval(
@@ -133,29 +158,32 @@ export default class TypingSpeedPlugin extends Plugin {
 					this.settings.metrics == "cps" ||
 					this.settings.metrics == "cpm"
 				) {
-					added = this.keyTypedInSecond;
+					added = this.keyTypedInSecond * this.pollings_in_seconds;
 					this.keyTypedInSecond = 0;
 				} else if (this.settings.metrics == "wpm") {
-					added = this.wordTypedInSecond;
+					added = this.wordTypedInSecond * this.pollings_in_seconds;
 					this.wordTypedInSecond = 0;
 				}
 
-				if (!this.hasStoppedTyping(this.Typed) || added != 0) {
-					if (this.hasStoppedTyping(this.Typed)) {
-						this.Typed = [];
+				if (!this.hasStoppedTyping(this.typed) || added != 0) {
+					if (this.hasStoppedTyping(this.typed)) {
+						this.typed = [];
 					}
 
-					if (this.Typed.length > this.pollings_in_seconds * 10) {
-						array_shiftadd(this.Typed, added);
+					if (
+						this.typed.length >
+						this.pollings_in_seconds * fact * 1.5
+					) {
+						array_shiftadd(this.typed, added);
 					} else {
-						this.Typed.push(added);
+						this.typed.push(added);
 					}
-					average = Math.round(average_array(this.Typed) * fact);
+					average = Math.round(average_array(this.typed) * fact);
 
 					// avoid showing minmax if the setting is disabled
 					if (this.settings.show_minmax) {
 						const { min: min_avg, max: max_avg } = minmax_in_array(
-							this.Typed,
+							this.typed,
 						);
 						min_val = Math.round(min_avg * fact);
 						max_val = Math.round(max_avg * fact);
@@ -242,15 +270,6 @@ class TypingSpeedSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 
 		containerEl.empty();
-		const coffeeLink = containerEl.createEl("a", {
-			href: "https://ko-fi.com/cypbv",
-		});
-		const coffeeImg = coffeeLink.createEl("img", {
-			attr: {
-				src: "https://cdn.ko-fi.com/cdn/kofi3.png?v=3",
-			},
-		});
-		coffeeImg.height = 45;
 
 		containerEl.createEl("h2", {
 			text: "Settings for typing-speed plugin",
@@ -269,7 +288,7 @@ class TypingSpeedSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.metrics)
 					.onChange(async (value) => {
 						this.plugin.settings.metrics = value;
-						this.plugin.Typed = [0];
+						this.plugin.typed = [0];
 						await this.plugin.saveSettings();
 					}),
 			);
