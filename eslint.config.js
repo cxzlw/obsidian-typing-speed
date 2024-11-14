@@ -9,4 +9,5 @@ export default [
 	pluginJs.configs.recommended,
 	{ ignores: ["dist/**", "main.js"] },
 	...tseslint.configs.recommended,
+	{ rules: { "no-undef": "off" } },
 ];
