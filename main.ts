@@ -155,7 +155,7 @@ export default class TypingSpeedPlugin extends Plugin {
 					// avoid showing minmax if the setting is disabled
 					if (this.settings.show_minmax) {
 						const { min: min_avg, max: max_avg } = minmax_in_array(
-							this.Typed
+							this.Typed,
 						);
 						min_val = Math.round(min_avg * fact);
 						max_val = Math.round(max_avg * fact);
@@ -182,7 +182,7 @@ export default class TypingSpeedPlugin extends Plugin {
 					final_str += " (" + min_val + "-" + max_val + ")";
 				}
 				this.statusBarItemEl.setText(final_str);
-			}, 1000 / this.pollings_in_seconds)
+			}, 1000 / this.pollings_in_seconds),
 		);
 	}
 
@@ -192,7 +192,7 @@ export default class TypingSpeedPlugin extends Plugin {
 		this.settings = Object.assign(
 			{},
 			DEFAULT_SETTINGS,
-			await this.loadData()
+			await this.loadData(),
 		);
 
 		// for some people, the settings don't get updated.
@@ -271,13 +271,13 @@ class TypingSpeedSettingTab extends PluginSettingTab {
 						this.plugin.settings.metrics = value;
 						this.plugin.Typed = [0];
 						await this.plugin.saveSettings();
-					})
+					}),
 			);
 
 		new Setting(containerEl)
 			.setName("Normalize word counting")
 			.setDesc(
-				"Replicate the word counting functionality of MonkeyType by considering each word as the number of characters divided by 5. While this method may not be as precise for direct word counting, it accounts for the varying lengths of words."
+				"Replicate the word counting functionality of MonkeyType by considering each word as the number of characters divided by 5. While this method may not be as precise for direct word counting, it accounts for the varying lengths of words.",
 			)
 			.addToggle((bool) =>
 				bool
@@ -285,13 +285,13 @@ class TypingSpeedSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.monkeytype_counting = value;
 						await this.plugin.saveSettings();
-					})
+					}),
 			);
 
 		new Setting(containerEl)
 			.setName("Show min-max typing speed")
 			.setDesc(
-				"Present the lowest and highest typing speeds observed, focusing specifically on the worst and best speeds recorded within 3-second intervals. Note that there is more numbers shifting per second so it may be more distracting"
+				"Present the lowest and highest typing speeds observed, focusing specifically on the worst and best speeds recorded within 3-second intervals. Note that there is more numbers shifting per second so it may be more distracting",
 			)
 			.addToggle((bool) =>
 				bool
@@ -299,7 +299,7 @@ class TypingSpeedSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.show_minmax = value;
 						await this.plugin.saveSettings();
-					})
+					}),
 			);
 		containerEl.createEl("h3", { text: "Styling" });
 
@@ -312,13 +312,13 @@ class TypingSpeedSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Darken after 3 sec")
 			.setDesc(
-				"When you stop writing, after 3 seconds the typing speed display will darken or hide."
+				"When you stop writing, after 3 seconds the typing speed display will darken or hide.",
 			)
 			.addDropdown((text) =>
 				text
 					.addOption(
 						"darken",
-						"darken - only make the status less visible"
+						"darken - only make the status less visible",
 					)
 					.addOption("hide", "hide - fully hide the status")
 					.addOption("show", "show - always show the status")
@@ -326,13 +326,13 @@ class TypingSpeedSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.darken_after_pausing = value;
 						await this.plugin.saveSettings();
-					})
+					}),
 			);
 
 		new Setting(containerEl)
 			.setName("Display first")
 			.setDesc(
-				"Tweak the ordering in the status bar, to try to put the typing speed at first. Generally used to avoid shifting issue when trying to hide the typing speed. (This is a hack and may create little visual issues with other plugin)"
+				"Tweak the ordering in the status bar, to try to put the typing speed at first. Generally used to avoid shifting issue when trying to hide the typing speed. (This is a hack and may create little visual issues with other plugin)",
 			)
 			.addToggle((bool) =>
 				bool
@@ -340,7 +340,7 @@ class TypingSpeedSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.display_first = value;
 						await this.plugin.saveSettings();
-					})
+					}),
 			);
 	}
 }
