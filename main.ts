@@ -109,7 +109,6 @@ export default class TypingSpeedPlugin extends Plugin {
 		});
 
 		this.registerDomEvent(this.editorEl, "compositionend", (e) => {
-			console.log(e);
 			this.isComposing = false;
 			e.target.dispatchEvent(
 				new InputEvent("input", {
@@ -125,7 +124,7 @@ export default class TypingSpeedPlugin extends Plugin {
 
 		this.registerDomEvent(this.editorEl, "input", (evt: InputEvent) => {
 			if (evt.isComposing) return;
-			console.log(evt);
+
 			for (const char of evt.data) {
 				const keyRegex = /^[\p{L},;1-9]$/gu;
 				if (char.match(keyRegex)) {
